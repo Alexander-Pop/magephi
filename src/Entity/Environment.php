@@ -65,8 +65,10 @@ class Environment
     /**
      * Try to locate automatically the environment files.
      * TODO: If a file is missing or has multiple occurrence, the user will have to fill the blanks.
+     *
+     * @param string $workingDir If provided, the method will search the configuration files in this path
      */
-    public function autoLocate(): void
+    public function autoLocate(string $workingDir = ''): void
     {
         $files = [
             'docker-compose.yml' => ['pattern' => '*/*/*/docker-compose.yml', 'variable' => 'dockerComposeFile'],
@@ -79,13 +81,13 @@ class Environment
         ];
 
         foreach ($files as $file => $data) {
-            $retrievedFiles = $this->retrieveFile($data['pattern'], $file);
+            $retrievedFiles = $this->retrieveFile($data['pattern'], $file, $workingDir);
             if (!empty($retrievedFiles[$file]) && !\is_array($retrievedFiles[$file])) {
                 $this->{$files[$file]['variable']} = $retrievedFiles[$file];
             }
         }
 
-        $currentDir = getcwd();
+        $currentDir = $workingDir !== '' ? $workingDir : getcwd();
         if (!\is_string($currentDir)) {
             throw new DirectoryNotFoundException('Current dir is not found.');
         }
@@ -103,6 +105,10 @@ class Environment
             }
             $this->phpImage = $match[1];
         }
+
+        if (empty($this->dockerComposeFile)) {
+            $this->autoLocate(\dirname($currentDir));
+        }
     }
 
     /**
@@ -110,13 +116,14 @@ class Environment
      *
      * @param string $pattern
      * @param string $key
+     * @param string $workingDir
      *
      * @return string[]
      */
-    public function retrieveFile(string $pattern, string $key): array
+    public function retrieveFile(string $pattern, string $key, string $workingDir = ''): array
     {
         /** @var false|string[] $files */
-        $files = glob($pattern);
+        $files = glob(($workingDir !== '' ? $workingDir . \DIRECTORY_SEPARATOR : $workingDir) . $pattern);
         if ($files === false) {
             throw new FileNotFoundException('Error while searching files for pattern ' . $pattern);
         }
